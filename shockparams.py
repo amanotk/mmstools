@@ -110,13 +110,13 @@ class PartialRH(NormalEstimator):
         self.method['rho'] = config.get('method', True)
         self.method['parameter'] = None
 
-    def normal(self):
+    def normal(self, x=None):
         pair = self.get_pair()
         R1, R2 = pair[0]
         U1, U2 = pair[1]
         P1, P2 = pair[2]
         B1, B2 = pair[3]
-        t, p = self.solve(R1, R2, U1, U2, B1, B2)
+        t, p = self.solve(R1, R2, U1, U2, B1, B2, x)
         return t, p
 
     def get_shock_angle(self, nx, ny, nz):
@@ -308,6 +308,9 @@ class PartialRH(NormalEstimator):
 
         # normal vector
         nx, ny, nz = insitu.sph2xyz(1, t, p)
+        Nx = np.atleast_1d(nx.mean())
+        Ny = np.atleast_1d(ny.mean())
+        Nz = np.atleast_1d(nz.mean())
         result['theta'] = t
         result['phi'] = p
 
@@ -321,9 +324,23 @@ class PartialRH(NormalEstimator):
         result['Vsh_bfd'] = Vsh_bfd
         result['Vsh_mom'] = Vsh_mom
 
+        # mean shock speed
+        Vsh_efd_mean = self.get_shock_speed_efield(Nx, Ny, Nz)
+        Vsh_rho_mean = self.get_shock_speed_massflux_r(Nx, Ny, Nz)
+        Vsh_bfd_mean = self.get_shock_speed_massflux_b(Nx, Ny, Nz)
+        Vsh_mom_mean = self.get_shock_speed_momentumflux(Nx, Ny, Nz)
+        result['Vsh_efd_mean'] = Vsh_efd_mean[0]
+        result['Vsh_rho_mean'] = Vsh_rho_mean[0]
+        result['Vsh_bfd_mean'] = Vsh_bfd_mean[0]
+        result['Vsh_mom_mean'] = Vsh_mom_mean[0]
+
         # shock angle
         Tbn = self.get_shock_angle(nx, ny, nz)
         result['Tbn'] = Tbn
+
+        # mean shock angle
+        Tbn_mean = self.get_shock_angle(Nx, Ny, Nz)
+        result['Tbn_mean'] = Tbn_mean[0]
 
         # Alfven Mach number
         Man_sc  = self.get_mach_number(nx, ny, nz)
@@ -337,6 +354,18 @@ class PartialRH(NormalEstimator):
         result['Man_bfd'] = Man_bfd
         result['Man_mom'] = Man_mom
 
+        # mean Alfven Mach number
+        Man_sc_mean  = self.get_mach_number(nx, ny, nz)
+        Man_efd_mean = self.get_mach_number(nx, ny, nz, Vsh_efd)
+        Man_rho_mean = self.get_mach_number(nx, ny, nz, Vsh_rho)
+        Man_bfd_mean = self.get_mach_number(nx, ny, nz, Vsh_bfd)
+        Man_mom_mean = self.get_mach_number(nx, ny, nz, Vsh_mom)
+        result['Man_sc_mean']  = Man_sc_mean[0]
+        result['Man_efd_mean'] = Man_efd_mean[0]
+        result['Man_rho_mean'] = Man_rho_mean[0]
+        result['Man_bfd_mean'] = Man_bfd_mean[0]
+        result['Man_mom_mean'] = Man_mom_mean[0]
+
         # upstream B-field
         result['R1'] = self.vars1[0]
         result['U1'] = self.vars1[1]
@@ -349,27 +378,33 @@ class PartialRH(NormalEstimator):
 
         return result
 
-    def solve(self, R1, R2, U1, U2, B1, B2):
-        x0 = np.array([90.0, 0.0])
+    def solve(self, R1, R2, U1, U2, B1, B2, x0=None):
+        if R1.size == R2.size:
+            nt = R1.size
+        else:
+            raise ValueError('Invalid input')
+        if x0 is None:
+            x0 = np.array([90.0, 0.0])
         R0 = 1.0e-6 # 1/m^6
         U0 = 1.0e-3 # m/s
         B0 = 1.0e+9 # T
-        t = np.zeros((self.nt1*self.nt2,), np.float64)
-        p = np.zeros((self.nt1*self.nt2,), np.float64)
-        for i in range(self.nt1*self.nt2):
+        t = np.zeros((nt,), np.float64)
+        p = np.zeros((nt,), np.float64)
+        for i in range(nt):
             args = (R1[i]/R0, R2[i]/R0,
                     U1[i]/U0, U2[i]/U0,
                     B1[i]/B0, B2[i]/B0)
             res  = optimize.least_squares(self.f, x0, args=args)
             if res.status > 0:
-                t[i] = res.x[0]
-                p[i] = res.x[1]
-                x0 = res.x
+                # make sure normal vector is radially outward
+                nvec = insitu.sph2xyz(1, res.x[0], res.x[1])
+                nsig = np.sign(nvec[0] + nvec[1] + nvec[2])
+                nvec = np.array(nvec) * nsig
+                _, t[i], p[i] = insitu.xyz2sph(*nvec)
             else:
                 print('No : ', res.x)
                 t[i] = None
                 p[i] = None
-            x0 = res.x
         return t, p
 
     def f(self, x, *args):
@@ -400,7 +435,7 @@ class PartialRH(NormalEstimator):
         # convert to appropriate unit
         Bn = Bn * 1.0e+9 # nT
         St = St * 1.0e+9 # nPa
-        Et = Et * 1.0e+3 # mU/m
+        Et = Et * 1.0e+3 # mV/m
         return np.array([Bn, St[0], St[1], St[2], Et[0], Et[1], Et[2]])
 
 
@@ -582,13 +617,21 @@ def estimate_normal(args, sc=None, **config):
     method[3]    = 'MC'
     estimator[3] = MC((B1,), (B2,))
 
+    # estimate normal except for PartialRH
     normal = [0]*Nm
-    for im in range(Nm):
+    for im in range(1, Nm):
         theta, phi = estimator[im].normal()
         normal[im] = dict(method=method[im], theta=theta, phi=phi)
 
-    # estimate parameter with PartialRH
+    # MixedVM result is used as the initial guess for PartialRH
     im = 0
+    jm = 1
+    t = normal[jm]['theta'].mean()
+    p = normal[jm]['phi'].mean()
+    theta, phi = estimator[im].normal([t, p])
+    normal[im] = dict(method=method[im], theta=theta, phi=phi)
+
+    # now estimate shock parameters with PartialRH
     t = normal[im]['theta']
     p = normal[im]['phi']
     params = estimator[im].get_parameters(t, p)
@@ -997,22 +1040,23 @@ def process_file(cfg):
     logstr = printlog(logstr, '*** output directory     : %s' % (dirname))
 
     # mean parameters
-    Tbn  = params['Tbn']
-    Tbn1 = Tbn.mean()
-    Tbn2 = np.where(Tbn < 90.0, Tbn, 180-Tbn).mean()
-    Vsh1 = params['Vsh_efd'].mean()
-    Vsh2 = params['Vsh_rho'].mean()
-    Man0 = params['Man_sc'].mean()
-    Man1 = params['Man_efd'].mean()
-    Man2 = params['Man_rho'].mean()
+    Tbn  = params['Tbn_mean']
+    Vsh1 = params['Vsh_efd_mean']
+    Vsh2 = params['Vsh_rho_mean']
+    Vsh3 = params['Vsh_mom_mean']
+    Man0 = params['Man_sc_mean']
+    Man1 = params['Man_efd_mean']
+    Man2 = params['Man_rho_mean']
+    Man3 = params['Man_mom_mean']
     mean_params = {
-        'theta_bn (0-180)' : Tbn1,
-        'theta_bn (0-90)'  : Tbn2,
+        'theta_bn'         : Tbn,
         'V_sh (efield)'    : Vsh1,
         'V_sh (rho)'       : Vsh2,
+        'V_sh (mom)'       : Vsh3,
         'M_an (sc)'        : Man0,
         'M_an (efield)'    : Man1,
         'M_an (rho)'       : Man2,
+        'M_an (mom)'       : Man3,
     }
     for key, item in mean_params.items():
         logstr = printlog(logstr, '*** %-20s : %7.3f' % (key, item))
