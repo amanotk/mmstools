@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """Summary Plot for Bow Shock Crossings with Burst-mode
@@ -80,31 +81,29 @@ def load(probe, trange):
     return data
 
 
-def calc_fce(data):
+def calc_fce(data, na):
     from insitu import const
 
-    btot = np.linalg.norm(data['fgm'].values[:,0:3], axis=-1)
-    fce  = np.abs(const.qme*btot/const.c) / (2*np.pi)
+    btot = np.linalg.norm(data['fgm'].values[:,0:3], axis=-1) * 1.0e-9
+    fce  = np.abs(const.qme*btot) / (2*np.pi)
 
     x = data['fgm'].time.values
     y = np.repeat(fce[:,None], 3, axis=1)
     y[:,1] = y[:,0] * 0.5
     y[:,2] = y[:,0] * 0.1
     fce = insitu.create_xarray(x=x, y=y)
-    insitu.set_plot_option(fce,
-                           legend=None,
-                           linecolor=['w', 'w', 'w'])
-    data['fce'] = fce
+    data['fce'] = fce.rolling(time=na, center='True').mean()
+    data['fce'].attrs = fce.attrs
 
     return data
 
-def calc_wavepower(data):
+
+def calc_wavepower(data, ns):
     from insitu import wave
 
     scm = data['scm']
     edp = data['edp']
     fs  = 8192
-    ns  = 1024
     win = 'blackman'
 
     data['scm_spec'] = wave.spectrogram([scm[:,0], scm[:,1], scm[:,2]],
@@ -115,7 +114,7 @@ def calc_wavepower(data):
     return data
 
 
-def set_plot_options(data):
+def set_plot_options(data, colormap='viridis'):
     if 'fgm' in data:
         insitu.set_plot_option(data['fgm'],
                                ylabel='B [nT]')
@@ -142,41 +141,58 @@ def set_plot_options(data):
         insitu.set_plot_option(data['dis_f'],
                                ylabel='DIS (omni) [eV]',
                                zlabel=zlabel,
-                               colormap='viridis')
+                               zrange=[3, 9],
+                               colormap=colormap)
     if 'des_f' in data:
         zlabel = insitu.get_plot_option(data['des_f'], 'zlabel')
         insitu.set_plot_option(data['des_f'],
                                ylabel='DES (omni) [eV]',
                                zlabel=zlabel,
-                               colormap='viridis')
+                               zrange=[4, 10],
+                               colormap=colormap)
     if 'scm_spec' in data:
         insitu.set_plot_option(data['scm_spec'],
                                ylabel='Frequency [Hz]',
-                               yrange=[1.0e+1, 1.0e+3],
+                               yrange=[1.0e+1, 4.0e+3],
                                zlabel='[nT^2 / Hz]',
-                               zrange=[-7, 2])
+                               zrange=[-8, 0],
+                               colormap=colormap)
+        spec = data['scm_spec'].values
+        data['scm_spec'].values = np.where(spec > 1.0e-8, spec, None)
+
     if 'edp_spec' in data:
         insitu.set_plot_option(data['edp_spec'],
                                ylabel='Frequency [Hz]',
-                               yrange=[1.0e+1, 1.0e+3],
+                               yrange=[1.0e+1, 4.0e+3],
                                zlabel='[mV^2 / Hz]',
-                               zrange=[-7, 2])
+                               zrange=[-7, 1],
+                               colormap=colormap)
+        spec = data['edp_spec'].values
+        data['edp_spec'].values = np.where(spec > 1.0e-7, spec, None)
+    if 'fce' in data:
+        insitu.set_plot_option(data['fce'],
+                               legend=None,
+                               linecolor=['k', 'k', 'k'])
+        data['fce'].values = np.log10(data['fce'].values)
 
 
 def plot(data, **kwargs):
-    data = calc_wavepower(data)
-    data = calc_fce(data)
-    set_plot_options(data)
+    ns = 1024
+    na = 16
+    data = calc_wavepower(data, ns)
+    data = calc_fce(data, na)
+
+    # set plot options
+    set_plot_options(data, 'jet')
+
     items = [
         data['fgm'],
         [data['dis_n'], data['des_n']],
         data['dis_v'],
         data['dis_f'],
         data['des_f'],
-        data['scm_spec'],
-        data['edp_spec'],
-        #[data['scm_spec'], data['fce']],
-        #[data['edp_spec'], data['fce']],
+        [data['scm_spec'], data['fce']],
+        [data['edp_spec'], data['fce']],
     ]
 
     if not 'width' in kwargs:
@@ -191,3 +207,39 @@ def load_and_plot(probe, trange, **kwargs):
     data = load(probe, trange)
     figure = plot(data, **kwargs)
     return figure, data
+
+
+if __name__ == '__main__':
+    import argparse
+    description = """Generate Summary Plot for Bow Shock Crossings"""
+    parser = argparse.ArgumentParser(description=description)
+
+    # add command line options
+    parser.add_argument('-t', '--trange',
+                        dest='trange',
+                        nargs=2,
+                        type=str,
+                        required=True,
+                        help='time interval')
+    parser.add_argument('-o', '--output',
+                        dest='output',
+                        type=str,
+                        required=True,
+                        help='output filename')
+    parser.add_argument('-p', '--probe',
+                        dest='probe',
+                        type=int,
+                        default=1,
+                        help='spacecraft ID')
+
+    # parse
+    args = parser.parse_args()
+    output = args.output
+    trange = args.trange
+    probe  = args.probe
+    if probe < 1 or probe > 4:
+        print('No such spacecraft ID : %d --- use MMS1 instead' % (probe))
+        probe = 1
+
+    figure, data = load_and_plot(probe, trange, backend='mpl')
+    figure.savefig(output)
