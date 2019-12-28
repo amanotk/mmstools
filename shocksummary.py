@@ -151,29 +151,29 @@ def set_plot_options(data, colormap='viridis'):
                                zrange=[4, 10],
                                colormap=colormap)
     if 'scm_spec' in data:
+        zrange = [-8, 0]
         insitu.set_plot_option(data['scm_spec'],
                                ylabel='Frequency [Hz]',
                                yrange=[1.0e+1, 4.0e+3],
                                zlabel='[nT^2 / Hz]',
-                               zrange=[-8, 0],
+                               zrange=zrange,
                                colormap=colormap)
         spec = data['scm_spec'].values
-        data['scm_spec'].values = np.where(spec > 1.0e-8, spec, None)
-
+        data['scm_spec'].values = np.where(spec > 10**zrange[0], spec, None)
     if 'edp_spec' in data:
+        zrange = [-7, 1]
         insitu.set_plot_option(data['edp_spec'],
                                ylabel='Frequency [Hz]',
                                yrange=[1.0e+1, 4.0e+3],
                                zlabel='[mV^2 / Hz]',
-                               zrange=[-7, 1],
+                               zrange=zrange,
                                colormap=colormap)
         spec = data['edp_spec'].values
-        data['edp_spec'].values = np.where(spec > 1.0e-7, spec, None)
+        data['edp_spec'].values = np.where(spec > 10**zrange[0], spec, None)
     if 'fce' in data:
         insitu.set_plot_option(data['fce'],
                                legend=None,
                                linecolor=['k', 'k', 'k'])
-        data['fce'].values = np.log10(data['fce'].values)
 
 
 def plot(data, **kwargs):
