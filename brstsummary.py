@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Summary Plot for Bow Shock Crossings with Burst-mode
+"""Summary Plot for Burst-mode
 
 """
 import os
@@ -30,12 +30,18 @@ def get_data_regexp(d, pattern):
         return item
 
 
+def get_extended_trange(trange, delt):
+    t1 = insitu.to_datestring(insitu.to_unixtime(trange[0]) - delt)
+    t2 = insitu.to_datestring(insitu.to_unixtime(trange[1]) + delt)
+    return [t1, t2]
+
+
 def load(probe, trange):
     from pyspedas import mms
 
     kwargs = {
         'probe'     : probe,
-        'trange'    : trange,
+        'trange'    : get_extended_trange(trange, 10.0),
         'time_clip' : 1,
         'data_rate' : 'brst',
     }
@@ -176,14 +182,14 @@ def set_plot_options(data, colormap='viridis'):
                                linecolor=['k', 'k', 'k'])
 
 
-def plot(data, **kwargs):
+def plot(data, trange, **kwargs):
     ns = 1024
     na = 16
     data = calc_wavepower(data, ns)
     data = calc_fce(data, na)
 
     # set plot options
-    set_plot_options(data, 'jet')
+    set_plot_options(data)
 
     items = [
         data['fgm'],
@@ -200,18 +206,20 @@ def plot(data, **kwargs):
     if not 'height' in kwargs:
         kwargs['height'] = 1200
 
-    return insitu.tplot(items, **kwargs)
+    return insitu.tplot(items, trange=trange, **kwargs)
 
 
 def load_and_plot(probe, trange, **kwargs):
+    kwargs['title'] = 'MMS%d ' % (probe) + \
+                      insitu.to_datestring(trange[0], '%Y-%m-%d %H:%M:%S')
     data = load(probe, trange)
-    figure = plot(data, **kwargs)
+    figure = plot(data, trange, **kwargs)
     return figure, data
 
 
 if __name__ == '__main__':
     import argparse
-    description = """Generate Summary Plot for Bow Shock Crossings"""
+    description = """Generate Summary Plot for Burst-mode"""
     parser = argparse.ArgumentParser(description=description)
 
     # add command line options
