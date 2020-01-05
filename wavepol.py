@@ -113,11 +113,22 @@ def calc_wavepol(data, ns):
     fs  = 8192
     win = 'blackman'
 
-    data['scm_spec'] = wave.spectrogram([scm[:,0], scm[:,1], scm[:,2]], fs,
-                                        nperseg=ns, noverlap=ns//2, window=win)
+    args = {
+        'sps_acb'  : 8192.0,
+        'sps_ace'  : 8192.0,
+        'sps_dcb'  : 128.0,
+        'nperseg'  : ns,
+        'noverlap' : ns//2,
+        'window'   : 'blackman',
+        'wsmooth'  : 'blackman',
+        'nsmooth'  : 3,
+        'detrend'  : False,
+    }
 
-    svd = wave.SVD(nperseg=ns, noverlap=ns//2, window=win)
-    result = svd.analyze(edp, scm, fgm)
+    #data['scm_spec'] = wave.spectrogram([scm[:,0], scm[:,1], scm[:,2]], fs,
+    #                                    nperseg=ns, noverlap=ns//2, window=win)
+
+    result = wave.msvd(edp, scm, fgm, **args)
 
     var_names = ('psd', 'planarity', 'degpol', 'ellipticity',
                  'theta_kb', 'theta_sb',)
@@ -178,21 +189,12 @@ def plot(data, trange, **kwargs):
     # set plot options
     set_plot_options(data)
 
-    print(insitu.to_datestring(data['scm_spec'].time[:5], '%M:%S.%f'))
-    print(insitu.to_datestring(data['psd'].time[:5], '%M:%S.%f'))
-    print(insitu.to_datestring(data['scm_spec'].time[-5:], '%M:%S.%f'))
-    print(insitu.to_datestring(data['psd'].time[-5:], '%M:%S.%f'))
-    print(data['scm_spec'].time.shape)
-    print(data['psd'].time.shape)
-
-    data['psd']['time'] = data['scm_spec']['time']
-
     items = [
         data['fgm'],
         data['dis_v'],
-        [data['scm_spec'], data['fce']],
         [data['psd'], data['fce']],
         [data['degpol'], data['fce']],
+        [data['planarity'], data['fce']],
         [data['ellipticity'], data['fce']],
         [data['theta_kb'], data['fce']],
         [data['theta_sb'], data['fce']],
