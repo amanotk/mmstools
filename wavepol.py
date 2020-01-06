@@ -97,7 +97,7 @@ def calc_fce(data, na):
     y = np.repeat(fce[:,None], 3, axis=1)
     y[:,1] = y[:,0] * 0.5
     y[:,2] = y[:,0] * 0.1
-    fce = insitu.create_xarray(x=x, y=y)
+    fce = insitu.create_xarray(x=x, y=y, name='fce')
     data['fce'] = fce.rolling(time=na, center='True').mean()
     data['fce'].attrs = fce.attrs
 
@@ -124,9 +124,6 @@ def calc_wavepol(data, ns):
         'nsmooth'  : 3,
         'detrend'  : False,
     }
-
-    #data['scm_spec'] = wave.spectrogram([scm[:,0], scm[:,1], scm[:,2]], fs,
-    #                                    nperseg=ns, noverlap=ns//2, window=win)
 
     result = wave.msvd(edp, scm, fgm, **args)
 
@@ -166,14 +163,14 @@ def set_plot_options(data, colormap='viridis'):
                                ylabel='DIS (omni) [eV]',
                                zlabel=zlabel,
                                zrange=[3, 9],
-                               colormap=colormap)
+                               colormap=[colormap])
     if 'des_f' in data:
         zlabel = insitu.get_plot_option(data['des_f'], 'zlabel')
         insitu.set_plot_option(data['des_f'],
                                ylabel='DES (omni) [eV]',
                                zlabel=zlabel,
                                zrange=[4, 10],
-                               colormap=colormap)
+                               colormap=[colormap])
     if 'fce' in data:
         insitu.set_plot_option(data['fce'],
                                legend=None,
@@ -181,7 +178,7 @@ def set_plot_options(data, colormap='viridis'):
 
 
 def plot(data, trange, **kwargs):
-    ns = 512
+    ns = 1024
     na = 16
     data = calc_wavepol(data, ns)
     data = calc_fce(data, na)
@@ -201,9 +198,9 @@ def plot(data, trange, **kwargs):
     ]
 
     if not 'width' in kwargs:
-        kwargs['width'] = 800
+        kwargs['width'] = 1200
     if not 'height' in kwargs:
-        kwargs['height'] = 800
+        kwargs['height'] = 1200
 
     return insitu.tplot(items, trange=trange, **kwargs)
 
