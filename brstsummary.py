@@ -10,7 +10,7 @@ os.environ['PYTPLOT_NO_GRAPHICS'] = '1'
 import numpy as np
 import pytplot
 import pyspedas
-import insitu
+import aspy
 
 
 def get_data_regexp(d, pattern):
@@ -31,8 +31,8 @@ def get_data_regexp(d, pattern):
 
 
 def get_extended_trange(trange, delt):
-    t1 = insitu.to_datestring(insitu.to_unixtime(trange[0]) - delt)
-    t2 = insitu.to_datestring(insitu.to_unixtime(trange[1]) + delt)
+    t1 = aspy.to_datestring(aspy.to_unixtime(trange[0]) - delt)
+    t2 = aspy.to_datestring(aspy.to_unixtime(trange[1]) + delt)
     return [t1, t2]
 
 
@@ -88,7 +88,7 @@ def load(probe, trange):
 
 
 def calc_fce(data, na):
-    from insitu import const
+    from aspy import const
 
     btot = np.linalg.norm(data['fgm'].values[:,0:3], axis=-1) * 1.0e-9
     fce  = np.abs(const.qme*btot) / (2*np.pi)
@@ -97,7 +97,7 @@ def calc_fce(data, na):
     y = np.repeat(fce[:,None], 3, axis=1)
     y[:,1] = y[:,0] * 0.5
     y[:,2] = y[:,0] * 0.1
-    fce = insitu.create_xarray(x=x, y=y)
+    fce = aspy.create_xarray(x=x, y=y)
     data['fce'] = fce.rolling(time=na, center='True').mean()
     data['fce'].attrs = fce.attrs
 
@@ -105,7 +105,7 @@ def calc_fce(data, na):
 
 
 def calc_wavepower(data, ns):
-    from insitu import wave
+    from aspy import wave
 
     scm = data['scm']
     edp = data['edp']
@@ -122,64 +122,64 @@ def calc_wavepower(data, ns):
 
 def set_plot_options(data, colormap='viridis'):
     if 'fgm' in data:
-        insitu.set_plot_option(data['fgm'],
-                               ylabel='B [nT]')
+        aspy.set_plot_option(data['fgm'],
+                             ylabel='B [nT]')
     if 'dis_n' in data:
-        insitu.set_plot_option(data['dis_n'],
-                               ylabel='Density [1/cm^3]',
-                               legend=['Ni'],
-                               linecolor='r')
+        aspy.set_plot_option(data['dis_n'],
+                             ylabel='Density [1/cm^3]',
+                             legend=['Ni'],
+                             linecolor='r')
     if 'des_n' in data:
-        insitu.set_plot_option(data['des_n'],
-                               ylabel='Density [1/cm^3]',
-                               legend=['Ne'],
-                               linecolor='b')
+        aspy.set_plot_option(data['des_n'],
+                             ylabel='Density [1/cm^3]',
+                             legend=['Ne'],
+                             linecolor='b')
     if 'dis_v' in data:
-        insitu.set_plot_option(data['dis_v'],
-                               ylabel='Velocity [km/s]',
-                               legend=['Vix', 'Viy', 'Viz'])
+        aspy.set_plot_option(data['dis_v'],
+                             ylabel='Velocity [km/s]',
+                             legend=['Vix', 'Viy', 'Viz'])
     if 'des_v' in data:
-        insitu.set_plot_option(data['des_v'],
-                               ylabel='Velocity [km/s]',
-                               legend=['Vex', 'Vey', 'Vez'])
+        aspy.set_plot_option(data['des_v'],
+                             ylabel='Velocity [km/s]',
+                             legend=['Vex', 'Vey', 'Vez'])
     if 'dis_f' in data:
-        zlabel = insitu.get_plot_option(data['dis_f'], 'zlabel')
-        insitu.set_plot_option(data['dis_f'],
-                               ylabel='DIS (omni) [eV]',
-                               zlabel=zlabel,
-                               zrange=[3, 9],
-                               colormap=colormap)
+        zlabel = aspy.get_plot_option(data['dis_f'], 'zlabel')
+        aspy.set_plot_option(data['dis_f'],
+                             ylabel='DIS (omni) [eV]',
+                             zlabel=zlabel,
+                             zrange=[3, 9],
+                             colormap=colormap)
     if 'des_f' in data:
-        zlabel = insitu.get_plot_option(data['des_f'], 'zlabel')
-        insitu.set_plot_option(data['des_f'],
-                               ylabel='DES (omni) [eV]',
-                               zlabel=zlabel,
-                               zrange=[4, 10],
-                               colormap=colormap)
+        zlabel = aspy.get_plot_option(data['des_f'], 'zlabel')
+        aspy.set_plot_option(data['des_f'],
+                             ylabel='DES (omni) [eV]',
+                             zlabel=zlabel,
+                             zrange=[4, 10],
+                             colormap=colormap)
     if 'scm_spec' in data:
         zrange = [-8, 0]
-        insitu.set_plot_option(data['scm_spec'],
-                               ylabel='Frequency [Hz]',
-                               yrange=[1.0e+1, 4.0e+3],
-                               zlabel='[nT^2 / Hz]',
-                               zrange=zrange,
-                               colormap=colormap)
+        aspy.set_plot_option(data['scm_spec'],
+                             ylabel='Frequency [Hz]',
+                             yrange=[1.0e+1, 4.0e+3],
+                             zlabel='[nT^2 / Hz]',
+                             zrange=zrange,
+                             colormap=colormap)
         spec = data['scm_spec'].values
         data['scm_spec'].values = np.where(spec > 10**zrange[0], spec, None)
     if 'edp_spec' in data:
         zrange = [-7, 1]
-        insitu.set_plot_option(data['edp_spec'],
-                               ylabel='Frequency [Hz]',
-                               yrange=[1.0e+1, 4.0e+3],
-                               zlabel='[mV^2 / Hz]',
-                               zrange=zrange,
-                               colormap=colormap)
+        aspy.set_plot_option(data['edp_spec'],
+                             ylabel='Frequency [Hz]',
+                             yrange=[1.0e+1, 4.0e+3],
+                             zlabel='[mV^2 / Hz]',
+                             zrange=zrange,
+                             colormap=colormap)
         spec = data['edp_spec'].values
         data['edp_spec'].values = np.where(spec > 10**zrange[0], spec, None)
     if 'fce' in data:
-        insitu.set_plot_option(data['fce'],
-                               legend=None,
-                               linecolor=['k', 'k', 'k'])
+        aspy.set_plot_option(data['fce'],
+                             legend=None,
+                             linecolor=['k', 'k', 'k'])
 
 
 def plot(data, trange, **kwargs):
@@ -206,12 +206,12 @@ def plot(data, trange, **kwargs):
     if not 'height' in kwargs:
         kwargs['height'] = 1200
 
-    return insitu.tplot(items, trange=trange, **kwargs)
+    return aspy.tplot(items, trange=trange, **kwargs)
 
 
 def load_and_plot(probe, trange, **kwargs):
     kwargs['title'] = 'MMS%d ' % (probe) + \
-                      insitu.to_datestring(trange[0], '%Y-%m-%d %H:%M:%S')
+                      aspy.to_datestring(trange[0], '%Y-%m-%d %H:%M:%S')
     data = load(probe, trange)
     figure = plot(data, trange, **kwargs)
     return figure, data

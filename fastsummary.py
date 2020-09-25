@@ -10,7 +10,7 @@ os.environ['PYTPLOT_NO_GRAPHICS'] = '1'
 import numpy as np
 import pytplot
 import pyspedas
-import insitu
+import aspy
 
 
 def get_data_regexp(d, pattern):
@@ -31,8 +31,8 @@ def get_data_regexp(d, pattern):
 
 
 def get_extended_trange(trange, delt):
-    t1 = insitu.to_datestring(insitu.to_unixtime(trange[0]) - delt)
-    t2 = insitu.to_datestring(insitu.to_unixtime(trange[1]) + delt)
+    t1 = aspy.to_datestring(aspy.to_unixtime(trange[0]) - delt)
+    t2 = aspy.to_datestring(aspy.to_unixtime(trange[1]) + delt)
     return [t1, t2]
 
 
@@ -76,40 +76,40 @@ def load(probe, trange):
 
 def set_plot_options(data, colormap='viridis'):
     if 'fgm' in data:
-        insitu.set_plot_option(data['fgm'],
-                               ylabel='B [nT]')
+        aspy.set_plot_option(data['fgm'],
+                             ylabel='B [nT]')
     if 'dis_n' in data:
-        insitu.set_plot_option(data['dis_n'],
-                               ylabel='Density [1/cm^3]',
-                               legend=['Ni'],
-                               linecolor='r')
+        aspy.set_plot_option(data['dis_n'],
+                             ylabel='Density [1/cm^3]',
+                             legend=['Ni'],
+                             linecolor='r')
     if 'des_n' in data:
-        insitu.set_plot_option(data['des_n'],
-                               ylabel='Density [1/cm^3]',
-                               legend=['Ne'],
-                               linecolor='b')
+        aspy.set_plot_option(data['des_n'],
+                             ylabel='Density [1/cm^3]',
+                             legend=['Ne'],
+                             linecolor='b')
     if 'dis_v' in data:
-        insitu.set_plot_option(data['dis_v'],
-                               ylabel='Velocity [km/s]',
-                               legend=['Vix', 'Viy', 'Viz'])
+        aspy.set_plot_option(data['dis_v'],
+                             ylabel='Velocity [km/s]',
+                             legend=['Vix', 'Viy', 'Viz'])
     if 'des_v' in data:
-        insitu.set_plot_option(data['des_v'],
-                               ylabel='Velocity [km/s]',
-                               legend=['Vex', 'Vey', 'Vez'])
+        aspy.set_plot_option(data['des_v'],
+                             ylabel='Velocity [km/s]',
+                             legend=['Vex', 'Vey', 'Vez'])
     if 'dis_f' in data:
-        zlabel = insitu.get_plot_option(data['dis_f'], 'zlabel')
-        insitu.set_plot_option(data['dis_f'],
-                               ylabel='DIS (omni) [eV]',
-                               zlabel=zlabel,
-                               zrange=[3, 9],
-                               colormap=colormap)
+        zlabel = aspy.get_plot_option(data['dis_f'], 'zlabel')
+        aspy.set_plot_option(data['dis_f'],
+                             ylabel='DIS (omni) [eV]',
+                             zlabel=zlabel,
+                             zrange=[3, 9],
+                             colormap=colormap)
     if 'des_f' in data:
-        zlabel = insitu.get_plot_option(data['des_f'], 'zlabel')
-        insitu.set_plot_option(data['des_f'],
-                               ylabel='DES (omni) [eV]',
-                               zlabel=zlabel,
-                               zrange=[4, 10],
-                               colormap=colormap)
+        zlabel = aspy.get_plot_option(data['des_f'], 'zlabel')
+        aspy.set_plot_option(data['des_f'],
+                             ylabel='DES (omni) [eV]',
+                             zlabel=zlabel,
+                             zrange=[4, 10],
+                             colormap=colormap)
 
 
 def plot(data, **kwargs):
@@ -129,7 +129,7 @@ def plot(data, **kwargs):
     if not 'height' in kwargs:
         kwargs['height'] = 800
 
-    return insitu.tplot(items, **kwargs)
+    return aspy.tplot(items, **kwargs)
 
 
 def load_and_plot(probe, trange, **kwargs):

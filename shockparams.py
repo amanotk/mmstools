@@ -41,8 +41,8 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib import pylab as plt
 
-import insitu
-const = insitu.const
+import aspy
+const = aspy.const
 
 
 class NormalEstimator(object):
@@ -78,7 +78,7 @@ class VC(NormalEstimator):
         U1, U2 = pair[0]
         U0 = np.sqrt(np.sum((U2 - U1)**2, axis=1))
         nv = (U2 - U1)/U0[:,None]
-        r, t, p = insitu.xyz2sph(nv[:,0], nv[:,1], nv[:,2])
+        r, t, p = aspy.xyz2sph(nv[:,0], nv[:,1], nv[:,2])
         return t, p
 
 
@@ -87,7 +87,7 @@ class MC(NormalEstimator):
         pair = self.get_pair()
         B1, B2 = pair[0]
         nv = np.cross(np.cross(B1, B2), B1 - B2)
-        r, t, p = insitu.xyz2sph(nv[:,0], nv[:,1], nv[:,2])
+        r, t, p = aspy.xyz2sph(nv[:,0], nv[:,1], nv[:,2])
         return t, p
 
 
@@ -99,7 +99,7 @@ class MixedVM(NormalEstimator):
         dB = B2 - B1
         dU = U2 - U1
         nv = np.cross(np.cross(dB, dU), dB)
-        r, t, p = insitu.xyz2sph(nv[:,0], nv[:,1], nv[:,2])
+        r, t, p = aspy.xyz2sph(nv[:,0], nv[:,1], nv[:,2])
         return t, p
 
 
@@ -307,7 +307,7 @@ class PartialRH(NormalEstimator):
         result = dict()
 
         # normal vector
-        nx, ny, nz = insitu.sph2xyz(1, t, p)
+        nx, ny, nz = aspy.sph2xyz(1, t, p)
         Nx = np.atleast_1d(nx.mean())
         Ny = np.atleast_1d(ny.mean())
         Nz = np.atleast_1d(nz.mean())
@@ -397,10 +397,10 @@ class PartialRH(NormalEstimator):
             res  = optimize.least_squares(self.f, x0, args=args)
             if res.status > 0:
                 # make sure normal vector is radially outward
-                nvec = insitu.sph2xyz(1, res.x[0], res.x[1])
+                nvec = aspy.sph2xyz(1, res.x[0], res.x[1])
                 nsig = np.sign(nvec[0] + nvec[1] + nvec[2])
                 nvec = np.array(nvec) * nsig
-                _, t[i], p[i] = insitu.xyz2sph(*nvec)
+                _, t[i], p[i] = aspy.xyz2sph(*nvec)
             else:
                 print('No : ', res.x)
                 t[i] = None
@@ -409,7 +409,7 @@ class PartialRH(NormalEstimator):
 
     def f(self, x, *args):
         R1, R2, U1, U2, B1, B2 = args
-        Nv = np.array(insitu.sph2xyz(1, x[0], x[1]))
+        Nv = np.array(aspy.sph2xyz(1, x[0], x[1]))
         if self.method['rho']:
             # shock speed estimate using density
             Vs = (R2*U2 - R1*U1)/(R2 - R1)
@@ -493,8 +493,8 @@ def get_title(tu, td):
     u2  = tsu[1].strftime('%H:%M:%S')
     d1  = tsd[0].strftime('%H:%M:%S')
     d2  = tsd[1].strftime('%H:%M:%S')
-    title = '%s : upstream = [%s, %s]; downstream = [%s, %s]' %\
-            (day, u1, u2, d1, d2)
+    title = '%s : upstream = [%s, %s]; downstream = [%s, %s]' % \
+                             (day, u1, u2, d1, d2)
     return title
 
 
@@ -654,7 +654,7 @@ def plot_summary(isc, args, title, fn, **config):
     tb  = np.arange(n) * dt + t[0]
     tt  = 0.5*(tb[+1:] + tb[:-1])
     bb  = Bf.groupby_bins('time', tb).mean().values
-    bf  = insitu.create_xarray(x=tt, y=bb)
+    bf  = aspy.create_xarray(x=tt, y=bb)
 
     # interpolation
     ni  = Ni.interp(time=tt)
@@ -667,41 +667,41 @@ def plot_summary(isc, args, title, fn, **config):
     Ef[:,0] = (bf[:,1] * vi[:,2] - bf[:,2] * vi[:,1]) * 1.0e-3
     Ef[:,1] = (bf[:,2] * vi[:,0] - bf[:,0] * vi[:,2]) * 1.0e-3
     Ef[:,2] = (bf[:,0] * vi[:,1] - bf[:,1] * vi[:,0]) * 1.0e-3
-    ef = insitu.create_xarray(x=tt, y=Ef)
+    ef = aspy.create_xarray(x=tt, y=Ef)
 
     # set plot options
-    insitu.set_plot_option(bf,
-                           ylabel='B [nT]',
-                           legend=('Bx', 'By', 'Bz', 'Bt'),
-                           line_color=('b', 'g', 'r', 'k'),
-                           trange=tr)
-    insitu.set_plot_option(ef,
-                           ylabel='E [mV/m]',
-                           legend=('Ex', 'Ey', 'Ez'),
-                           line_color=('b', 'g', 'r'),
-                           trange=tr)
-    insitu.set_plot_option(ni,
-                           ylabel='N [1/cm^3]',
-                           legend=('Ni',),
-                           line_color=('r',),
-                           trange=tr)
-    insitu.set_plot_option(ne,
-                           ylabel='N [1/cm^3]',
-                           legend=('Ne',),
-                           line_color=('b',),
-                           trange=tr)
-    insitu.set_plot_option(vi,
-                           ylabel='Vi [km/s]',
-                           legend=('Vix', 'Viy', 'Viz'),
-                           line_color=('b', 'g', 'r'),
-                           trange=tr)
-    insitu.set_plot_option(ve,
-                           ylabel='Ve [km/s]',
-                           legend=('Vex', 'Vey', 'Vez'),
-                           line_color=('b', 'g', 'r'),
-                           trange=tr)
+    aspy.set_plot_option(bf,
+                         ylabel='B [nT]',
+                         legend=('Bx', 'By', 'Bz', 'Bt'),
+                         line_color=('b', 'g', 'r', 'k'),
+                         trange=tr)
+    aspy.set_plot_option(ef,
+                         ylabel='E [mV/m]',
+                         legend=('Ex', 'Ey', 'Ez'),
+                         line_color=('b', 'g', 'r'),
+                         trange=tr)
+    aspy.set_plot_option(ni,
+                         ylabel='N [1/cm^3]',
+                         legend=('Ni',),
+                         line_color=('r',),
+                         trange=tr)
+    aspy.set_plot_option(ne,
+                         ylabel='N [1/cm^3]',
+                         legend=('Ne',),
+                         line_color=('b',),
+                         trange=tr)
+    aspy.set_plot_option(vi,
+                         ylabel='Vi [km/s]',
+                         legend=('Vix', 'Viy', 'Viz'),
+                         line_color=('b', 'g', 'r'),
+                         trange=tr)
+    aspy.set_plot_option(ve,
+                         ylabel='Ve [km/s]',
+                         legend=('Vex', 'Vey', 'Vez'),
+                         line_color=('b', 'g', 'r'),
+                         trange=tr)
 
-    fig = insitu.tplot([bf, [ni, ne], vi, ve, ef], title=title, backend='mpl')
+    fig = aspy.tplot([bf, [ni, ne], vi, ve, ef], title=title, backend='mpl')
     fig.savefig(fn)
 
 
@@ -831,7 +831,7 @@ def plot_position(data, tr, params, fn):
     B1    = params['B1'].mean(axis=0)
     b     = B1 / np.sqrt(np.sum(B1**2))
     bx, by, bz = b[0], b[1], b[2]
-    nx, ny, nz = insitu.sph2xyz(1.0, theta, phi)
+    nx, ny, nz = aspy.sph2xyz(1.0, theta, phi)
 
     fig, axs = plt.subplots(2, 2, figsize=(10,10))
     plt.subplots_adjust(hspace=0.30, wspace=0.35,
@@ -935,7 +935,7 @@ def get_nml_coordinate(params):
     bup   = params['B1'].mean(axis=0)
 
     # N direction
-    nx, ny, nz = insitu.sph2xyz(1, theta, phi)
+    nx, ny, nz = aspy.sph2xyz(1, theta, phi)
     nvec = np.array([nx, ny, nz])
 
     # L direction
