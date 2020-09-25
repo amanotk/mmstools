@@ -8,6 +8,7 @@ import os
 os.environ['PYTPLOT_NO_GRAPHICS'] = '1'
 
 import numpy as np
+import xarray as xr
 import pytplot
 import pyspedas
 import aspy
@@ -99,6 +100,7 @@ def calc_fce(data, na):
     y[:,2] = y[:,0] * 0.1
     fce = aspy.create_xarray(x=x, y=y, name='fce')
     data['fce'] = fce.rolling(time=na, center='True').mean()
+    data['fce'].name = fce.name
     data['fce'].attrs = fce.attrs
 
     return data
@@ -127,9 +129,7 @@ def calc_wavepol(data, ns):
 
     result = wave.msvd(edp, scm, fgm, **args)
 
-    var_names = ('psd', 'planarity', 'degpol', 'ellipticity',
-                 'theta_kb', 'theta_sb',)
-    for v in var_names:
+    for v in result.keys():
         data[v] = result[v]
 
     return data
@@ -180,11 +180,21 @@ def set_plot_options(data, colormap='viridis'):
 def plot(data, trange, **kwargs):
     ns = 1024
     na = 16
-    data = calc_wavepol(data, ns)
-    data = calc_fce(data, na)
+    calc_wavepol(data, ns)
+    calc_fce(data, na)
 
     # set plot options
     set_plot_options(data)
+
+    # save as netcdf
+    if kwargs.get('ncfile', None) is not None:
+        print('saving data to %s' % (kwargs['ncfile']))
+        savelist = []
+        for key, item in data.items():
+            print('key = %s' % (key))
+            if isinstance(item, xr.DataArray):
+                savelist.append(item)
+        insitu.ncsave(savelist, kwargs['ncfile'])
 
     items = [
         data['fgm'],
@@ -235,15 +245,21 @@ if __name__ == '__main__':
                         type=int,
                         default=1,
                         help='spacecraft ID')
+    parser.add_argument('-n', '--ncfile',
+                        dest='ncfile',
+                        type=str,
+                        default=None,
+                        help='NetCDF filename to which the data are saved')
 
     # parse
     args = parser.parse_args()
     output = args.output
     trange = args.trange
     probe  = args.probe
+    ncfile = args.ncfile
     if probe < 1 or probe > 4:
         print('No such spacecraft ID : %d --- use MMS1 instead' % (probe))
         probe = 1
 
-    figure, data = load_and_plot(probe, trange, backend='mpl')
+    figure, data = load_and_plot(probe, trange, ncfile=ncfile, backend='mpl')
     figure.savefig(output)
