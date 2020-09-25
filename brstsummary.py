@@ -147,17 +147,17 @@ def set_plot_options(data, colormap='viridis'):
         aspy.set_plot_option(data['dis_f'],
                              ylabel='DIS (omni) [eV]',
                              zlabel=zlabel,
-                             zrange=[3, 9],
+                             zrange=[1e+3, 1e+9],
                              colormap=colormap)
     if 'des_f' in data:
         zlabel = aspy.get_plot_option(data['des_f'], 'zlabel')
         aspy.set_plot_option(data['des_f'],
                              ylabel='DES (omni) [eV]',
                              zlabel=zlabel,
-                             zrange=[4, 10],
+                             zrange=[1e+4, 1e+10],
                              colormap=colormap)
     if 'scm_spec' in data:
-        zrange = [-8, 0]
+        zrange = [1e-8, 1e+0]
         aspy.set_plot_option(data['scm_spec'],
                              ylabel='Frequency [Hz]',
                              yrange=[1.0e+1, 4.0e+3],
@@ -165,9 +165,8 @@ def set_plot_options(data, colormap='viridis'):
                              zrange=zrange,
                              colormap=colormap)
         spec = data['scm_spec'].values
-        data['scm_spec'].values = np.where(spec > 10**zrange[0], spec, None)
     if 'edp_spec' in data:
-        zrange = [-7, 1]
+        zrange = [1e-7, 1e+1]
         aspy.set_plot_option(data['edp_spec'],
                              ylabel='Frequency [Hz]',
                              yrange=[1.0e+1, 4.0e+3],
@@ -175,7 +174,6 @@ def set_plot_options(data, colormap='viridis'):
                              zrange=zrange,
                              colormap=colormap)
         spec = data['edp_spec'].values
-        data['edp_spec'].values = np.where(spec > 10**zrange[0], spec, None)
     if 'fce' in data:
         aspy.set_plot_option(data['fce'],
                              legend=None,

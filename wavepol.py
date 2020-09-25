@@ -162,14 +162,14 @@ def set_plot_options(data, colormap='viridis'):
         aspy.set_plot_option(data['dis_f'],
                              ylabel='DIS (omni) [eV]',
                              zlabel=zlabel,
-                             zrange=[3, 9],
+                             zrange=[1e+3, 1e+9],
                              colormap=[colormap])
     if 'des_f' in data:
         zlabel = aspy.get_plot_option(data['des_f'], 'zlabel')
         aspy.set_plot_option(data['des_f'],
                              ylabel='DES (omni) [eV]',
                              zlabel=zlabel,
-                             zrange=[4, 10],
+                             zrange=[1e+4, 1e+10],
                              colormap=[colormap])
     if 'fce' in data:
         aspy.set_plot_option(data['fce'],
