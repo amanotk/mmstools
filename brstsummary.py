@@ -48,8 +48,8 @@ def load(probe, trange):
 
     # FGM
     varformat = r'*b_gse*'
-    mms.fgm(varformat='*b_gse*', **kwargs)
-    fgm = get_data_regexp(pytplot.data_quants, r'.*fgm_b_gse.*')
+    mms.fgm(varformat=varformat, **kwargs)
+    fgm = get_data_regexp(pytplot.data_quants, r'.*fgm_b_gse_.*l2$')
 
     # SCM
     varformat = r'*acb_gse_scb_*'

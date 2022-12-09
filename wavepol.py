@@ -171,6 +171,9 @@ def set_plot_options(data, colormap='viridis'):
                              zlabel=zlabel,
                              zrange=[1e+4, 1e+10],
                              colormap=[colormap])
+    if 'psd' in data:
+        aspy.set_plot_option(data['psd'],
+                             zrange=[1e-8, 1e+2])
     if 'fce' in data:
         aspy.set_plot_option(data['fce'],
                              legend=None,

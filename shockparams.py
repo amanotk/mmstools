@@ -500,7 +500,6 @@ def get_title(tu, td):
 
 def get_time_bins(Bf, dt):
     # down sampling the magnetic field
-    dt  = 4.5
     t   = Bf.time.values
     n   = (t[-1] - t[0])/dt
     tb  = np.arange(n) * dt + t[0]
@@ -516,8 +515,8 @@ def get_sliced_quantities(isc, tb1, tb2, args):
     Pi = args['pi'][isc]
     Pe = args['pe'][isc]
 
-    t1 = 0.5*(tb1[+1:] + tb1[:-1])
-    t2 = 0.5*(tb2[+1:] + tb2[:-1])
+    t1 = tb1[:-1] + 0.5*(tb1[+1:] - tb1[:-1])
+    t2 = tb2[:-1] + 0.5*(tb2[+1:] - tb2[:-1])
     Pi = (Pi[:,0,0] + Pi[:,1,1] + Pi[:,2,2])/3
     Pe = (Pe[:,0,0] + Pe[:,1,1] + Pe[:,2,2])/3
 
@@ -558,13 +557,13 @@ def get_sliced_quantities(isc, tb1, tb2, args):
 
 def estimate_normal(args, sc=None, **config):
     Nm = 4
-    tr1 = [pd.Timestamp(config[t]).timestamp() for t in ('tu1', 'tu2')]
-    tr2 = [pd.Timestamp(config[t]).timestamp() for t in ('td1', 'td2')]
+    tr1 = [pd.to_datetime(config[t]).to_numpy() for t in ('tu1', 'tu2')]
+    tr2 = [pd.to_datetime(config[t]).to_numpy() for t in ('td1', 'td2')]
 
     # generate upstream-downstream pairs
     if type(sc) == int and sc >= 1 and sc <= 4:
         # use single spacecraft
-        tb  = get_time_bins(args['bf'][sc-1], 4.5)
+        tb  = get_time_bins(args['bf'][sc-1], 4.5 * 1e+9)
         j1  = np.searchsorted(tb, tr1)
         j2  = np.searchsorted(tb, tr2)
         tb1 = tb[j1[0]-1:j1[1]+1]
@@ -574,7 +573,7 @@ def estimate_normal(args, sc=None, **config):
         R2, U2, P2, B2 = d_params
     else:
         # average over four spacecraft
-        tb  = get_time_bins(args['bf'][0], 4.5)
+        tb  = get_time_bins(args['bf'][0], 4.5 * 1e+9)
         j1  = np.searchsorted(tb, tr1)
         j2  = np.searchsorted(tb, tr2)
         tb1 = tb[j1[0]-1:j1[1]+1]
@@ -648,11 +647,11 @@ def plot_summary(isc, args, title, fn, **config):
     Ve = args['ve'][isc]
 
     # down sampling the magnetic field
-    dt  = 4.5
+    dt  = 4.5 * 1.0e+9
     t   = Bf.time.values
     n   = (t[-1] - t[0])/dt
     tb  = np.arange(n) * dt + t[0]
-    tt  = 0.5*(tb[+1:] + tb[:-1])
+    tt  = tb[:-1] + 0.5*(tb[+1:] - tb[:-1])
     bb  = Bf.groupby_bins('time', tb).mean().values
     bf  = aspy.create_xarray(x=tt, y=bb)
 
