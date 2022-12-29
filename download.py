@@ -4,7 +4,6 @@
 import os
 import sys
 import pickle
-import base64
 
 import h5py
 import numpy as np
@@ -13,31 +12,33 @@ import pandas as pd
 import pyspedas
 import pytplot
 
-DIR_FMT = '%Y%m%d_%H%M%S'
+DIR_FMT = "%Y%m%d_%H%M%S"
 
 
 def encode(x):
     return np.frombuffer(pickle.dumps(x), dtype=np.int8)
 
+
 def decode(x):
     return pickle.loads(x.tobytes())
 
+
 def save_hdf5(h5file, data):
-    with h5py.File(h5file, 'w') as fp:
+    with h5py.File(h5file, "w") as fp:
         for ds in data:
-            if hasattr(ds, 'name'): # DataArray object
+            if hasattr(ds, "name"):  # DataArray object
                 name = ds.name
                 byte = encode(ds)
                 fp.create_dataset(name, data=byte)
-            elif 'name' in ds: # dict object
-                name = ds['name']
+            elif "name" in ds:  # dict object
+                name = ds["name"]
                 byte = encode(ds)
                 fp.create_dataset(name, data=byte)
 
 
 def load_hdf5(h5file, tplot=None):
     data = list()
-    with h5py.File(h5file, 'r') as fp:
+    with h5py.File(h5file, "r") as fp:
         for key in fp.keys():
             byte = fp.get(key)[()]
             data.append(decode(byte))
@@ -55,9 +56,9 @@ def store_tplot(data):
 
 
 def read_eventlist(filename):
-    csv = pd.read_csv(filename, names=['start', 'end'], header=0)
-    tr1 = pd.to_datetime(csv['start'])
-    tr2 = pd.to_datetime(csv['end'])
+    csv = pd.read_csv(filename, names=["start", "end"], header=0)
+    tr1 = pd.to_datetime(csv["start"])
+    tr2 = pd.to_datetime(csv["end"])
     return tr1, tr2
 
 
@@ -65,19 +66,19 @@ def doit(tr1, tr2, force=None):
     if len(tr1) != len(tr2):
         return
 
-    log_omni = ''
-    log_fast = ''
-    log_brst = ''
-    log_orbit = ''
+    log_omni = ""
+    log_fast = ""
+    log_brst = ""
+    log_orbit = ""
 
     N = len(tr1)
     for i in range(N):
         # prepare directory
-        dirname = tr1[i].strftime(DIR_FMT) + '-' + tr2[i].strftime(DIR_FMT)
+        dirname = tr1[i].strftime(DIR_FMT) + "-" + tr2[i].strftime(DIR_FMT)
         if not os.path.exists(dirname):
             os.mkdir(dirname)
         if not os.path.isdir(dirname):
-            print('ignoreing {} as it is not a directory'.format(dirname))
+            print("ignoreing {} as it is not a directory".format(dirname))
             continue
 
         # load and save
@@ -86,54 +87,54 @@ def doit(tr1, tr2, force=None):
         log_brst = load_and_save_brst(tr1[i], tr2[i], dirname, force)
         log_orbit += load_and_save_orbit(tr1[i], tr2[i], dirname, force)
 
-    print('*** Log Message for omni ***')
+    print("*** Log Message for omni ***")
     print(log_omni)
 
-    print('*** Log Message for fast ***')
+    print("*** Log Message for fast ***")
     print(log_fast)
 
-    print('*** Log Message for brst ***')
+    print("*** Log Message for brst ***")
     print(log_brst)
 
-    print('*** Log Message for orbit ***')
+    print("*** Log Message for orbit ***")
     print(log_orbit)
 
 
 def load_and_save_orbit(tr1, tr2, dirname, force=None):
-    fn = os.sep.join([dirname, 'orbit.h5'])
+    fn = os.sep.join([dirname, "orbit.h5"])
 
-    logmsg = ''
+    logmsg = ""
 
     # do not write
     if force != True and os.path.exists(fn):
         return logmsg
 
     # time range (+- 2 hours from the specified interval)
-    fmt = '%Y-%m-%d %H:%M:%S'
-    t1 = (pd.to_datetime(tr1) - np.timedelta64(2, 'h')).strftime(fmt)
-    t2 = (pd.to_datetime(tr2) + np.timedelta64(2, 'h')).strftime(fmt)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    t1 = (pd.to_datetime(tr1) - np.timedelta64(2, "h")).strftime(fmt)
+    t2 = (pd.to_datetime(tr2) + np.timedelta64(2, "h")).strftime(fmt)
 
     probe = [1, 2, 3, 4]
     kwargs = {
-        'probe' : [1, 2, 3, 4],
-        'trange' : [t1, t2],
-        'time_clip' : True,
+        "probe": [1, 2, 3, 4],
+        "trange": [t1, t2],
+        "time_clip": True,
     }
 
     try:
-        pyspedas.mms.mec(data_rate='srvy', **kwargs)
+        pyspedas.mms.mec(data_rate="srvy", **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load MEC for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load MEC for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     # save data
     varnames = list()
     suffix = [
-        'mec_r_gse',
-        'mec_v_gse',
+        "mec_r_gse",
+        "mec_v_gse",
     ]
     for i in range(4):
-        sc = 'mms%d_' % (i+1)
+        sc = "mms%d_" % (i + 1)
         for s in suffix:
             varnames.append(sc + s)
 
@@ -151,69 +152,71 @@ def load_and_save_orbit(tr1, tr2, dirname, force=None):
 
 
 def load_and_save_fast(tr1, tr2, dirname, force=None):
-    fn = os.sep.join([dirname, 'fast.h5'])
+    fn = os.sep.join([dirname, "fast.h5"])
 
-    logmsg = ''
+    logmsg = ""
 
     # do not write
     if force != True and os.path.exists(fn):
         return logmsg
 
     # time range (+- 10 min from the specified interval)
-    fmt = '%Y-%m-%d %H:%M:%S'
-    t1 = (pd.to_datetime(tr1) - np.timedelta64(10, 'm')).strftime(fmt)
-    t2 = (pd.to_datetime(tr2) + np.timedelta64(10, 'm')).strftime(fmt)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    t1 = (pd.to_datetime(tr1) - np.timedelta64(10, "m")).strftime(fmt)
+    t2 = (pd.to_datetime(tr2) + np.timedelta64(10, "m")).strftime(fmt)
 
     probe = [1, 2, 3, 4]
     kwargs = {
-        'probe' : [1, 2, 3, 4],
-        'trange' : [t1, t2],
-        'time_clip' : True,
+        "probe": [1, 2, 3, 4],
+        "trange": [t1, t2],
+        "time_clip": True,
     }
 
     ## FGM
     try:
-        fmt = '*fgm_b_gse_srvy_l2'
-        pyspedas.mms.fgm(data_rate='srvy', varformat=fmt, **kwargs)
+        fmt = "*fgm_b_gse_srvy_l2"
+        pyspedas.mms.fgm(data_rate="srvy", varformat=fmt, **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load FGM for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load FGM for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     ## FPI moments
     try:
-        fmt = '*(numberdensity|bulkv_gse|prestensor_gse|energyspectr_omni)*'
-        pyspedas.mms.fpi(data_rate='fast', datatype=['des-moms', 'dis-moms'], varformat=fmt, **kwargs)
+        fmt = "*(numberdensity|bulkv_gse|prestensor_gse|energyspectr_omni)*"
+        pyspedas.mms.fpi(
+            data_rate="fast", datatype=["des-moms", "dis-moms"], varformat=fmt, **kwargs
+        )
     except Exception as e:
-        logmsg += 'Failed to load FPI for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load FPI for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     ## FEEPS
     try:
-        pyspedas.mms.feeps(data_rate='srvy', datatype='electron', **kwargs)
+        pyspedas.mms.feeps(data_rate="srvy", datatype="electron", **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load FEEPS for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load FEEPS for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     # save data
     varnames = list()
     suffix = [
-        'fgm_b_gse_srvy_l2',
-        'dis_numberdensity_fast',
-        'des_numberdensity_fast',
-        'dis_bulkv_gse_fast',
-        'des_bulkv_gse_fast',
-        'dis_temppara_fast',
-        'des_temppara_fast',
-        'dis_tempperp_fast',
-        'des_tempperp_fast',
-        'dis_prestensor_gse_fast',
-        'des_prestensor_gse_fast',
-        'dis_energyspectr_omni_fast',
-        'des_energyspectr_omni_fast',
-        'epd_feeps_srvy_l2_electron_intensity_omni',
+        "fgm_b_gse_srvy_l2",
+        "dis_numberdensity_fast",
+        "des_numberdensity_fast",
+        "dis_bulkv_gse_fast",
+        "des_bulkv_gse_fast",
+        "dis_temppara_fast",
+        "des_temppara_fast",
+        "dis_tempperp_fast",
+        "des_tempperp_fast",
+        "dis_prestensor_gse_fast",
+        "des_prestensor_gse_fast",
+        "dis_energyspectr_omni_fast",
+        "des_energyspectr_omni_fast",
+        "epd_feeps_srvy_l2_electron_intensity_omni",
     ]
     for i in range(4):
-        sc = 'mms%d_' % (i+1)
+        sc = "mms%d_" % (i + 1)
         for s in suffix:
             varnames.append(sc + s)
 
@@ -231,137 +234,137 @@ def load_and_save_fast(tr1, tr2, dirname, force=None):
 
 
 def load_and_save_brst(tr1, tr2, dirname, force=None):
-    fn = os.sep.join([dirname, 'brst.h5'])
+    fn = os.sep.join([dirname, "brst.h5"])
 
-    logmsg = ''
+    logmsg = ""
 
     # do not write
     if force != True and os.path.exists(fn):
         return logmsg
 
     # time range (+- 1 min from the specified interval)
-    fmt = '%Y-%m-%d %H:%M:%S'
-    t1 = (pd.to_datetime(tr1) - np.timedelta64(1, 'm')).strftime(fmt)
-    t2 = (pd.to_datetime(tr2) + np.timedelta64(1, 'm')).strftime(fmt)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    t1 = (pd.to_datetime(tr1) - np.timedelta64(1, "m")).strftime(fmt)
+    t2 = (pd.to_datetime(tr2) + np.timedelta64(1, "m")).strftime(fmt)
 
     probe = [1, 2, 3, 4]
     kwargs = {
-        'probe' : [1, 2, 3, 4],
-        'trange' : [t1, t2],
-        'time_clip' : True,
+        "probe": [1, 2, 3, 4],
+        "trange": [t1, t2],
+        "time_clip": True,
     }
 
     ## FGM
     try:
-        fmt = '*fgm_b_gse_brst_l2'
-        pyspedas.mms.fgm(data_rate='brst', varformat=fmt, **kwargs)
+        fmt = "*fgm_b_gse_brst_l2"
+        pyspedas.mms.fgm(data_rate="brst", varformat=fmt, **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load FGM for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load FGM for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     ## SCM
     try:
-        fmt = '*scm_acb_gse_scb_brst_l2'
-        pyspedas.mms.scm(data_rate='brst', varformat=fmt, **kwargs)
+        fmt = "*scm_acb_gse_scb_brst_l2"
+        pyspedas.mms.scm(data_rate="brst", varformat=fmt, **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load SCM for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load SCM for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     ## EDP
     try:
-        fmt = '*edp_dce_gse_brst_l2'
-        pyspedas.mms.edp(data_rate='brst', varformat=fmt, **kwargs)
+        fmt = "*edp_dce_gse_brst_l2"
+        pyspedas.mms.edp(data_rate="brst", varformat=fmt, **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load EDP for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load EDP for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     ## FPI moments
     try:
-        pyspedas.mms.fpi(data_rate='brst', **kwargs)
+        pyspedas.mms.fpi(data_rate="brst", **kwargs)
     except Exception as e:
-        logmsg += 'Failed to load FPI for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load FPI for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     ## FEEPS
     try:
-        pyspedas.mms.feeps(data_rate='brst', datatype='electron', **kwargs)
+        pyspedas.mms.feeps(data_rate="brst", datatype="electron", **kwargs)
         # FIXME: This does not work for some reasons
-        #pyspedas.mms_feeps_pad(probe=probe, data_rate='brst')
+        # pyspedas.mms_feeps_pad(probe=probe, data_rate='brst')
     except Exception as e:
-        logmsg += 'Failed to load FEEPS for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load FEEPS for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     # save data
     varnames = list()
     suffix = [
         # FGM
-        'fgm_b_gse_brst_l2',
+        "fgm_b_gse_brst_l2",
         # SCM
-        'scm_acb_gse_scb_brst_l2',
+        "scm_acb_gse_scb_brst_l2",
         # EDP
-        'edp_dce_gse_brst_l2',
+        "edp_dce_gse_brst_l2",
         # FPI-DES
-        'des_errorflags_brst',
-        'des_compressionloss_brst',
-        'des_phi_brst',
-        'des_phi_delta_brst',
-        'des_dist_brst',
-        'des_disterr_brst',
-        'des_theta_brst',
-        'des_theta_delta_brst',
-        'des_energy_brst',
-        'des_energy_delta_brst',
-        'des_pitchangdist_lowen_brst',
-        'des_pitchangdist_miden_brst',
-        'des_pitchangdist_highen_brst',
-        'des_energyspectr_par_brst',
-        'des_energyspectr_anti_brst',
-        'des_energyspectr_perp_brst',
-        'des_energyspectr_omni_brst',
-        'des_numberdensity_brst',
-        'des_numberdensity_err_brst',
-        'des_densityextrapolation_low_brst',
-        'des_densityextrapolation_high_brst',
-        'des_bulkv_gse_brst',
-        'des_bulkv_err_brst',
-        'des_prestensor_gse_brst',
-        'des_prestensor_err_brst',
-        'des_temppara_brst',
-        'des_tempperp_brst',
+        "des_errorflags_brst",
+        "des_compressionloss_brst",
+        "des_phi_brst",
+        "des_phi_delta_brst",
+        "des_dist_brst",
+        "des_disterr_brst",
+        "des_theta_brst",
+        "des_theta_delta_brst",
+        "des_energy_brst",
+        "des_energy_delta_brst",
+        "des_pitchangdist_lowen_brst",
+        "des_pitchangdist_miden_brst",
+        "des_pitchangdist_highen_brst",
+        "des_energyspectr_par_brst",
+        "des_energyspectr_anti_brst",
+        "des_energyspectr_perp_brst",
+        "des_energyspectr_omni_brst",
+        "des_numberdensity_brst",
+        "des_numberdensity_err_brst",
+        "des_densityextrapolation_low_brst",
+        "des_densityextrapolation_high_brst",
+        "des_bulkv_gse_brst",
+        "des_bulkv_err_brst",
+        "des_prestensor_gse_brst",
+        "des_prestensor_err_brst",
+        "des_temppara_brst",
+        "des_tempperp_brst",
         # FPI-DIS
-        'dis_errorflags_brst',
-        'dis_compressionloss_brst',
-        'dis_phi_brst',
-        'dis_phi_delta_brst',
-        'dis_dist_brst',
-        'dis_disterr_brst',
-        'dis_theta_brst',
-        'dis_theta_delta_brst',
-        'dis_energy_brst',
-        'dis_energy_delta_brst',
-        'dis_pitchangdist_lowen_brst',
-        'dis_pitchangdist_miden_brst',
-        'dis_pitchangdist_highen_brst',
-        'dis_energyspectr_par_brst',
-        'dis_energyspectr_anti_brst',
-        'dis_energyspectr_perp_brst',
-        'dis_energyspectr_omni_brst',
-        'dis_numberdensity_brst',
-        'dis_numberdensity_err_brst',
-        'dis_densityextrapolation_low_brst',
-        'dis_densityextrapolation_high_brst',
-        'dis_bulkv_gse_brst',
-        'dis_bulkv_err_brst',
-        'dis_prestensor_gse_brst',
-        'dis_prestensor_err_brst',
-        'dis_temppara_brst',
-        'dis_tempperp_brst',
+        "dis_errorflags_brst",
+        "dis_compressionloss_brst",
+        "dis_phi_brst",
+        "dis_phi_delta_brst",
+        "dis_dist_brst",
+        "dis_disterr_brst",
+        "dis_theta_brst",
+        "dis_theta_delta_brst",
+        "dis_energy_brst",
+        "dis_energy_delta_brst",
+        "dis_pitchangdist_lowen_brst",
+        "dis_pitchangdist_miden_brst",
+        "dis_pitchangdist_highen_brst",
+        "dis_energyspectr_par_brst",
+        "dis_energyspectr_anti_brst",
+        "dis_energyspectr_perp_brst",
+        "dis_energyspectr_omni_brst",
+        "dis_numberdensity_brst",
+        "dis_numberdensity_err_brst",
+        "dis_densityextrapolation_low_brst",
+        "dis_densityextrapolation_high_brst",
+        "dis_bulkv_gse_brst",
+        "dis_bulkv_err_brst",
+        "dis_prestensor_gse_brst",
+        "dis_prestensor_err_brst",
+        "dis_temppara_brst",
+        "dis_tempperp_brst",
         # FEEPS
-        'epd_feeps_brst_l2_electron_intensity_omni',
-        'epd_feeps_brst_l2_electron_intensity_70-600keV_pad',
-     ]
+        "epd_feeps_brst_l2_electron_intensity_omni",
+        "epd_feeps_brst_l2_electron_intensity_70-600keV_pad",
+    ]
     for i in range(4):
-        sc = 'mms%d_' % (i+1)
+        sc = "mms%d_" % (i + 1)
         for s in suffix:
             varnames.append(sc + s)
 
@@ -379,38 +382,38 @@ def load_and_save_brst(tr1, tr2, dirname, force=None):
 
 
 def load_and_save_omni(tr1, tr2, dirname, force=None):
-    fn = os.sep.join([dirname, 'omni.h5'])
+    fn = os.sep.join([dirname, "omni.h5"])
 
-    logmsg = ''
+    logmsg = ""
 
     # do not write
     if force != True and os.path.exists(fn):
         return logmsg
 
     # time range (+- 30 min from the specified interval)
-    fmt = '%Y-%m-%d %H:%M:%S'
-    t1 = (pd.to_datetime(tr1) - np.timedelta64(60, 'm')).strftime(fmt)
-    t2 = (pd.to_datetime(tr2) + np.timedelta64(60, 'm')).strftime(fmt)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    t1 = (pd.to_datetime(tr1) - np.timedelta64(60, "m")).strftime(fmt)
+    t2 = (pd.to_datetime(tr2) + np.timedelta64(60, "m")).strftime(fmt)
 
     # load
     try:
-        pyspedas.omni.data(trange=[t1, t2], datatype='1min')
+        pyspedas.omni.data(trange=[t1, t2], datatype="1min")
     except Exception as e:
-        logmsg += 'Failed to load OMNI for [{}, {}]'.format(t1, t2)
-        logmsg += ' : ' + str(e) + '\n'
+        logmsg += "Failed to load OMNI for [{}, {}]".format(t1, t2)
+        logmsg += " : " + str(e) + "\n"
 
     # save data
     mapnames = [
-        ('proton_density', 'omni_ni'),
-        ('BX_GSE', 'omni_bx'),
-        ('BY_GSE', 'omni_by'),
-        ('BZ_GSE', 'omni_bz'),
-        ('Vx', 'omni_vx'),
-        ('Vy', 'omni_vy'),
-        ('Vz', 'omni_vz'),
-        ('flow_speed', 'omni_vt'),
-        ('Beta', 'omni_beta'),
-        ('Mach_num', 'omni_mach'),
+        ("proton_density", "omni_ni"),
+        ("BX_GSE", "omni_bx"),
+        ("BY_GSE", "omni_by"),
+        ("BZ_GSE", "omni_bz"),
+        ("Vx", "omni_vx"),
+        ("Vy", "omni_vy"),
+        ("Vz", "omni_vz"),
+        ("flow_speed", "omni_vt"),
+        ("Beta", "omni_beta"),
+        ("Mach_num", "omni_mach"),
     ]
     data = list()
     for (old_name, new_name) in mapnames:
@@ -427,17 +430,16 @@ def load_and_save_omni(tr1, tr2, dirname, force=None):
     return logmsg
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # error check
     if len(sys.argv) < 2:
-        print('Error: No input file was specified.')
+        print("Error: No input file was specified.")
         sys.exit(-1)
 
     # analyze for each file
     for fn in sys.argv[1:]:
         if os.path.isfile(fn):
             tr1, tr2 = read_eventlist(fn)
-            #doit(tr1, tr2)
-            doit(tr1, tr2, force=True)
+            doit(tr1, tr2)
         else:
-            print('Error: No such file : %s' % (fn))
+            print("Error: No such file : %s" % (fn))
