@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 DIR_FMT = "%Y%m%d_%H%M%S"
+JSON_FILENAME = "shockgeometry.json"
 
 
 def sph2xyz(r, t, p, degree=True):
@@ -115,9 +116,11 @@ class AY76Analyzer:
         # Bl : difference of tangential component of B-field
         # Em : difference of out-of-coplanarity component of E-field
         # Vs : shock speed in s/c frame
-        Bl = np.sum(dB * lvec, axis=-1)
-        Em = np.sum((E2 - E1) * mvec, axis=-1)
-        Vs = -Em / Bl
+        Bl1 = np.sum(B1 * lvec, axis=-1)
+        Bl2 = np.sum(B2 * lvec, axis=-1)
+        Un1 = np.sum(U1 * nvec, axis=-1)
+        Un2 = np.sum(U2 * nvec, axis=-1)
+        Vs  = (Un2*Bl2 - Un1*Bl1) / (Bl2 - Bl1)
 
         return lvec, mvec, nvec, Vs
 
@@ -181,7 +184,7 @@ class AY76Analyzer:
 
         return lvec, mvec, nvec, Vs, nvec_err, Vs_err
 
-    def __call__(self, trange, data_dict, dirname):
+    def __call__(self, trange, data_dict, dirname, quality):
         t1, t2 = trange
         U = data_dict["vi"]
         B = data_dict["bf"]
@@ -221,11 +224,12 @@ class AY76Analyzer:
             analyzer=dict(
                 name="AY76", window=self.window, deltat=int(self.deltat / np.timedelta64(1, "s"))
             ),
+            quality=quality,
             l_index=l_index,
             r_index=r_index,
             l_trange=l_trange,
             r_trange=r_trange,
-            c_trange=trange,
+            c_trange=[ts.to_numpy() for ts in trange],
             lvec=lvec,
             mvec=mvec,
             nvec=nvec,
@@ -351,7 +355,7 @@ def save_parameters(data_dict, result, dirname):
     import pytplot
 
     Ne = data_dict["ne"]
-    Ni = data_dict["ne"]
+    Ni = data_dict["ni"]
     Ue = data_dict["ve"]
     Ui = data_dict["vi"]
     Pe = data_dict["pe"]
@@ -365,6 +369,9 @@ def save_parameters(data_dict, result, dirname):
     nvec = result["nvec"]
     Vshock = result["Vshock"]
 
+    # shock transition interval
+    trange = np.datetime_as_string(result["c_trange"])
+
     # upstream and downstream indices
     index1 = np.arange(l_index[0], l_index[1] + 1)
     index2 = np.arange(r_index[0], r_index[1] + 1)
@@ -374,7 +381,7 @@ def save_parameters(data_dict, result, dirname):
     # swap for outbound crossing
     if Ne.values[index1].mean() > Ne.values[index2].mean():
         index1, index2 = index2, index1
-        trange1, trange2 = trange1, trange2
+        trange1, trange2 = trange2, trange1
 
     ## take average and standard deviation
     stdmean = lambda f: (
@@ -401,28 +408,41 @@ def save_parameters(data_dict, result, dirname):
 
     Un1 = np.dot(Ui1_avg, nvec)
     Un2 = np.dot(Ui2_avg, nvec)
-    Bn1 = np.dot(Bf1_avg, nvec)
     Bl1 = np.dot(Bf1_avg, lvec)
+    Bm1 = np.dot(Bf1_avg, mvec)
+    Bn1 = np.dot(Bf1_avg, nvec)
     Bt1 = np.linalg.norm(Bf1_avg)
     Bt1_err = np.sqrt(Bf1_err[0] ** 2 + Bf1_err[1] ** 2 + Bf1_err[2] ** 2)
 
     # shock obliquity
     theta_bn = np.rad2deg(np.arctan2(Bl1, Bn1))
     theta_bn_err = result["error_nvec"]
+    cos_tbn = Bn1 / Bt1
+    cos_tbn_err = np.sqrt(
+        (1-cos_tbn**2) * np.deg2rad(theta_bn_err)**2 +
+        np.dot(Bf1_err/Bt1, nvec)**2)
 
     # shock speed
-    Vs_n_scf = np.abs(Vshock[2])
+    Vs_n_scf = Vshock[2]
     Vs_n_scf_err = result["error_vshn"]
-    Vs_n_nif = np.abs(Un1 - Vs_n_scf)
+    Vs_n_nif = Un1 - Vs_n_scf
     Vs_n_nif_err = Vs_n_scf_err
 
-    # Mach number
+    # upstream density correction
     Ne1_crct = Ne2_avg * (Un2 - Vshock[2]) / (Un1 - Vshock[2])
     Ne1_crct_err = Ne2_err * (Un2 - Vshock[2]) / (Un1 - Vshock[2])
-    Va1_crct = 21.806 * Bt1 / np.sqrt(Ne1_crct)
-    Va1_crct_err = Va1_crct * np.sqrt((Bt1_err / Bt1) ** 2 + 0.25 * (Ne1_crct_err / Ne1_crct) ** 2)
-    Ma_n_nif = Vs_n_nif / Va1_crct
-    Ma_n_nif_err = Vs_n_nif_err / Va1_crct
+    Ni1_crct = Ni2_avg * (Un2 - Vshock[2]) / (Un1 - Vshock[2])
+    Ni1_crct_err = Ni2_err * (Un2 - Vshock[2]) / (Un1 - Vshock[2])
+
+    # Mach number
+    Vs_abs = np.abs(Vs_n_nif)
+    Vs_err = Vs_n_scf_err
+    Ma_nif_i = 4.586e-2 * Vs_abs * np.sqrt(Ni1_avg) / Bt1
+    Ma_nif_i_err = Ma_nif_i * np.sqrt(
+        (Vs_n_nif_err/Vs_n_nif)**2 + (Bt1_err/Bt1)**2 + 0.25*(Ni1_err/Ni1_avg)**2)
+    Ma_nif_e = 4.586e-2 * Vs_abs * np.sqrt(Ne1_avg) / Bt1
+    Ma_nif_e_err = Ma_nif_e * np.sqrt(
+        (Vs_n_nif_err/Vs_n_nif)**2 + (Bt1_err/Bt1)**2 + 0.25*(Ne1_err/Ne1_avg)**2)
 
     # pressure plasma beta
     Pb = (np.linalg.norm(Bf1_avg) ** 2 / (2 * constants.mu_0)) * 1e-9
@@ -442,6 +462,9 @@ def save_parameters(data_dict, result, dirname):
 
     parameters = {
         "analyzer": result["analyzer"],
+        "quality": result["quality"],
+        "available_sc": data_dict["available"],
+        "trange": list(trange),
         "trange1": list(trange1),
         "trange2": list(trange2),
         # upstream
@@ -475,11 +498,13 @@ def save_parameters(data_dict, result, dirname):
         # shock parameters
         "Bt1": (Bt1, Bt1_err),
         "Ne1_crct": (Ne1_crct, Ne1_crct_err),
-        "Va1_crct": (Va1_crct, Va1_crct_err),
+        "Ni1_crct": (Ni1_crct, Ni1_crct_err),
         "theta_bn": (theta_bn, theta_bn_err),
+        "cos_tbn": (cos_tbn, cos_tbn_err),
         "Vs_n_nif": (Vs_n_nif, Vs_n_nif_err),
         "Vs_n_scf": (Vs_n_scf, Vs_n_scf_err),
-        "Ma_n_nif": (Ma_n_nif, Ma_n_nif_err),
+        "Ma_nif_i": (Ma_nif_i, Ma_nif_i_err),
+        "Ma_nif_e": (Ma_nif_e, Ma_nif_e_err),
         "Beta_i": (Pi1_avg / Pb, Pi1_err / Pb),
         "Beta_e": (Pe1_avg / Pb, Pe1_err / Pb),
         # coordinate
@@ -497,12 +522,15 @@ def save_parameters(data_dict, result, dirname):
     keywords = (
         "Ne1",
         "Ne1_crct",
+        "Ni1",
+        "Ni1_crct",
         "Bt1",
-        "Va1_crct",
         "theta_bn",
+        "cos_tbn",
         "Vs_n_scf",
         "Vs_n_nif",
-        "Ma_n_nif",
+        "Ma_nif_i",
+        "Ma_nif_e",
         "Beta_i",
         "Beta_e",
         "Ni_omni",
@@ -516,7 +544,7 @@ def save_parameters(data_dict, result, dirname):
         else:
             print("{:20s} : {:10.4f}".format(key, +parameters[key]))
 
-    with open(os.sep.join([dirname, "shockgeometry.json"]), "w") as fp:
+    with open(os.sep.join([dirname, JSON_FILENAME]), "w") as fp:
         fp.write(json.dumps(parameters, indent=4))
 
     return result
@@ -562,26 +590,52 @@ def preprocess():
     ve = aspy.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
     pi = aspy.create_xarray(x=tc, y=np.zeros((tc.size,)))
     pe = aspy.create_xarray(x=tc, y=np.zeros((tc.size,)))
+
+    weights = np.ones((4,))
+    sc = [True]*4
+    sc_bf = [0]*4
+    sc_ni = [0]*4
+    sc_ne = [0]*4
+    sc_vi = [0]*4
+    sc_ve = [0]*4
+    sc_pi = [0]*4
+    sc_pe = [0]*4
     for i in range(4):
-        bf += 0.25 * Bf[i].groupby_bins("time", tb).mean().values[:, 0:3]
-        ni += 0.25 * Ni[i].interp(time=tc).values
-        ne += 0.25 * Ne[i].interp(time=tc).values
-        vi += 0.25 * Vi[i].interp(time=tc).values
-        ve += 0.25 * Ve[i].interp(time=tc).values
-        pi += 0.25 * np.trace(Pi[i].interp(time=tc).values, axis1=1, axis2=2) / 3
-        pe += 0.25 * np.trace(Pe[i].interp(time=tc).values, axis1=1, axis2=2) / 3
+        sc_bf[i] = Bf[i].groupby_bins("time", tb).mean().values[:, 0:3]
+        sc_ni[i] = Ni[i].interp(time=tc).values
+        sc_ne[i] = Ne[i].interp(time=tc).values
+        sc_vi[i] = Vi[i].interp(time=tc).values
+        sc_ve[i] = Ve[i].interp(time=tc).values
+        sc_pi[i] = np.trace(Pi[i].interp(time=tc).values, axis1=1, axis2=2) / 3
+        sc_pe[i] = np.trace(Pe[i].interp(time=tc).values, axis1=1, axis2=2) / 3
+        # ignore if NaN is detected in any elements except for first and last
+        for x in sc_bf[i], sc_ni[i], sc_ne[i], sc_vi[i], sc_ve[i], sc_pi[i], sc_pe[i]:
+            if np.any(np.isnan(x[+1:-1])) == True:
+                sc[i] = False
+                weights[i] = 0.0
+            else:
+                weights[i] = 1.0
 
-    return dict(bf=bf, ni=ni, ne=ne, vi=vi, ve=ve, pi=pi, pe=pe)
+    # take average over S/C
+    weights = weights / np.sum(weights)
+    for i in range(4):
+        if sc[i]:
+            bf += weights[i] * sc_bf[i]
+            ni += weights[i] * sc_ni[i]
+            ne += weights[i] * sc_ne[i]
+            vi += weights[i] * sc_vi[i]
+            ve += weights[i] * sc_ve[i]
+            pi += weights[i] * sc_pi[i]
+            pe += weights[i] * sc_pe[i]
+        else:
+            print('Data for MMS{:1d} is not available'.format(i+1))
+
+    return dict(bf=bf, ni=ni, ne=ne, vi=vi, ve=ve, pi=pi, pe=pe, available=sc)
 
 
-def analyze_interval(trange, analyzer):
+def analyze_interval(trange, analyzer, dirname, quality=1):
     import pytplot
 
-    fmt = "%Y-%m-%d %H:%M:%S"
-    t1 = (pd.to_datetime(trange[0]) - np.timedelta64(10, "m")).strftime(fmt)
-    t2 = (pd.to_datetime(trange[1]) + np.timedelta64(10, "m")).strftime(fmt)
-
-    dirname = trange[0].strftime(DIR_FMT) + "-" + trange[1].strftime(DIR_FMT)
     if not (os.path.exists(dirname) and os.path.isdir(dirname)):
         print("ignoreing {} as it is not a directory".format(dirname))
         return
@@ -596,12 +650,52 @@ def analyze_interval(trange, analyzer):
     data_dict = preprocess()
 
     ## try to determine shock parameters
-    result = analyzer(trange, data_dict, dirname)
+    result = analyzer(trange, data_dict, dirname, quality)
 
     ## clear
     pytplot.del_data()
 
     return result
+
+
+def json2dict(js, ID):
+    # ID
+    d = dict(ID=ID)
+
+    # event quality
+    d["quality"] = js["quality"]
+
+    # interval
+    d["interval_1"] = "{}".format(js["trange"][0])
+    d["interval_2"] = "{}".format(js["trange"][1])
+    d["u_interval_1"] = "{}".format(js["trange1"][0])
+    d["u_interval_2"] = "{}".format(js["trange1"][1])
+    d["d_interval_1"] = "{}".format(js["trange2"][0])
+    d["d_interval_2"] = "{}".format(js["trange2"][1])
+
+    # LMN coordinate
+    for key in ("lvec", "mvec", "nvec"):
+        d["{}.x".format(key)] = js[key][0]
+        d["{}.y".format(key)] = js[key][1]
+        d["{}.z".format(key)] = js[key][2]
+
+    # add arbitrary parameters
+    ignore_keys = ("trange", "trange1", "trange2", "lvec", "mvec", "nvec",
+        "analyzer", "quality", "available_sc")
+    for key in js.keys():
+        if key in ignore_keys:
+            continue
+        # assume (average, error) pair
+        d["{}_avg".format(key)] = js[key][0]
+        d["{}_err".format(key)] = js[key][1]
+
+    # meta data
+    for key, item in js["analyzer"].items():
+        d["analyzer.{}".format(key)] = item
+    for i in range(4):
+        d["MMS{:1d}".format(i+1)] = 1 if js["available_sc"][i] == True else 0
+
+    return d
 
 
 if __name__ == "__main__":
@@ -625,6 +719,14 @@ if __name__ == "__main__":
         default=90,
         help="time range for the best time interval search in second",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        type=str,
+        default=None,
+        help="output CSV filename",
+    )
     args = parser.parse_args()
 
     # analyzer
@@ -635,20 +737,32 @@ if __name__ == "__main__":
     ###
     import download
 
+    targetlist = []
     for target in args.target:
         if os.path.isfile(target):
             #
             # event list file in CSV format
             #
             tr1, tr2 = download.read_eventlist(target)
-            for (t1, t2) in zip(tr1, tr2):
-                analyze_interval([t1, t2], analyzer)
+            csv = pd.read_csv(target, header=None, skiprows=1)
+            tr1 = pd.to_datetime(csv.iloc[:,0])
+            tr2 = pd.to_datetime(csv.iloc[:,1])
+            quality = csv.iloc[:,2]
+            for (t1, t2, q) in zip(tr1, tr2, quality):
+                try:
+                    dirname = t1.strftime(DIR_FMT) + "-" + t2.strftime(DIR_FMT)
+                    analyze_interval([t1, t2], analyzer, dirname, q)
+                    targetlist.append(dirname)
+                except Exception as e:
+                    print(e)
+                    print("Error: perhaps unrecognized directory format?")
 
         elif os.path.isdir(target):
             #
             # event directory
             #
-            tr = target.split("-")
+            dirname = os.path.dirname(target + os.sep)
+            tr = dirname.split("-")
             if len(tr) != 2:
                 print("Error: unrecognized directory format")
                 continue
@@ -656,10 +770,33 @@ if __name__ == "__main__":
             try:
                 t1 = pd.to_datetime(tr[0], format=DIR_FMT)
                 t2 = pd.to_datetime(tr[1], format=DIR_FMT)
-                analyze_interval([t1, t2], analyzer)
-            except Error as e:
+                analyze_interval([t1, t2], analyzer, dirname)
+                targetlist.append(dirname)
+            except Exception as e:
                 print(e)
-                print("Error: unrecognized directory format")
+                print("Error: perhaps unrecognized directory format?")
 
         else:
             print("Error: {} is not a file or directory".format(target))
+
+    # output to CSV file
+    if args.output is not None:
+        dictlist = []
+        for target in targetlist:
+            fn = os.sep.join([target, JSON_FILENAME])
+            if os.path.isfile(fn):
+                with open(fn, 'r') as fp:
+                    js = json.load(fp)
+                    dictlist.append(json2dict(js, target))
+
+        try:
+            with open(args.output, "w") as fp:
+                keys = list(dictlist[0].keys())
+                fp.write(",".join(keys) + "\n")
+                for d in dictlist:
+                    fp.write("{}".format(d[keys[0]]))
+                    for key in keys[1:]:
+                        fp.write(",{}".format(d[key]))
+                    fp.write("\n")
+        except Exception as e:
+            print(e)

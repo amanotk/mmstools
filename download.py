@@ -2,15 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import os
-import sys
 import pickle
 
 import h5py
 import numpy as np
 import pandas as pd
-
-import pyspedas
-import pytplot
 
 DIR_FMT = "%Y%m%d_%H%M%S"
 
@@ -51,14 +47,16 @@ def load_hdf5(h5file, tplot=None):
 
 
 def store_tplot(data):
+    import pytplot
+
     for ds in data:
         pytplot.data_quants[ds.name] = ds
 
 
 def read_eventlist(filename):
-    csv = pd.read_csv(filename, names=["start", "end"], header=0)
-    tr1 = pd.to_datetime(csv["start"])
-    tr2 = pd.to_datetime(csv["end"])
+    csv = pd.read_csv(filename, header=None, skiprows=1)
+    tr1 = pd.to_datetime(csv.iloc[:,0])
+    tr2 = pd.to_datetime(csv.iloc[:,1])
     return tr1, tr2
 
 
@@ -101,6 +99,9 @@ def doit(tr1, tr2, force=None):
 
 
 def load_and_save_orbit(tr1, tr2, dirname, force=None):
+    import pyspedas
+    import pytplot
+
     fn = os.sep.join([dirname, "orbit.h5"])
 
     logmsg = ""
@@ -152,6 +153,9 @@ def load_and_save_orbit(tr1, tr2, dirname, force=None):
 
 
 def load_and_save_fast(tr1, tr2, dirname, force=None):
+    import pyspedas
+    import pytplot
+
     fn = os.sep.join([dirname, "fast.h5"])
 
     logmsg = ""
@@ -234,6 +238,9 @@ def load_and_save_fast(tr1, tr2, dirname, force=None):
 
 
 def load_and_save_brst(tr1, tr2, dirname, force=None):
+    import pyspedas
+    import pytplot
+
     fn = os.sep.join([dirname, "brst.h5"])
 
     logmsg = ""
@@ -382,6 +389,9 @@ def load_and_save_brst(tr1, tr2, dirname, force=None):
 
 
 def load_and_save_omni(tr1, tr2, dirname, force=None):
+    import pyspedas
+    import pytplot
+
     fn = os.sep.join([dirname, "omni.h5"])
 
     logmsg = ""
@@ -431,15 +441,23 @@ def load_and_save_omni(tr1, tr2, dirname, force=None):
 
 
 if __name__ == "__main__":
-    # error check
-    if len(sys.argv) < 2:
-        print("Error: No input file was specified.")
-        sys.exit(-1)
+    import argparse
 
-    # analyze for each file
-    for fn in sys.argv[1:]:
-        if os.path.isfile(fn):
-            tr1, tr2 = read_eventlist(fn)
-            doit(tr1, tr2)
+    parser = argparse.ArgumentParser(description="Data Download Tool for MMS")
+    parser.add_argument("target", nargs="+", type=str, help="event list files")
+    parser.add_argument(
+        "-f",
+        "--force",
+        dest="force",
+        action="store_true",
+        default=False,
+        help="force download and overwrite existing files",
+    )
+    args = parser.parse_args()
+
+    for target in args.target:
+        if os.path.isfile(target):
+            tr1, tr2 = read_eventlist(target)
+            doit(tr1, tr2, force=args.force)
         else:
-            print("Error: No such file : %s" % (fn))
+            print("Error: No such file {}".format(target))
